@@ -1,0 +1,91 @@
+library(RCurl)
+library(twitteR)
+library(ROAuth)
+library(devtools)
+library(base64enc)
+# Download "cacert.pem" file
+download.file(url="https://curl.haxx.se/ca/cacert.pem",destfile="cacert.pem")
+
+#create an object "cred" that will save the authenticated object that we can use for later sessions
+cred <- OAuthFactory$new(consumerKey='enter the consumer key here',
+                         consumerSecret='enter the consumer secret key here',
+                         requestURL='https://api.twitter.com/oauth/request_token',
+                         accessURL='https://api.twitter.com/oauth/access_token',
+                         authURL='https://api.twitter.com/oauth/authorize')
+
+# Executing the next step generates an output --> To enable the connection, please direct your web browser to: <hyperlink> . Note:  You only need to do this part once
+cred$handshake(cainfo= system.file("CurlSSL", "cacert.pem", package = "RCurl"))
+#enter your auth number here
+save(cred, file="twitter authentication.Rdata")
+load("twitter authentication.Rdata")
+
+setup_twitter_oauth('DTujwm30Bt03ebEkqYMys67u6','Abf5XKmuYBHP9oE4aepkf716bZT5ZKD8a9KRLl3kiI2TQwCcxo','706853342-loOMxholYy0gOSYNaZyE2YxF6v0EzzilQljcgD0R','nPd5QgL7yRIC5cLO8wgy3A2hXRUCjdsSm1ApCu2yw4pDq')
+
+tweets <- searchTwitter("#NFL", n=1500)
+tweets.text <- sapply(tweets, function(x) x$getText())
+tweets.df <- twListToDF(tweets)
+write.csv(tweets.df, file = 'D:/r/tweets.csv', row.names = F)
+
+score.sentiment = function(sentences, pos.words, neg.words, .progress='none')
+{
+  require(plyr)
+  require(stringr)
+  
+  # we got a vector of sentences. plyr will handle a list or a vector as an "l" for us
+  # we want a simple array of scores back, so we use "l" + "a" + "ply" = laply:
+  scores = laply(sentences, function(sentence, pos.words, neg.words) {
+    
+    # clean up sentences with R's regex-driven global substitute, gsub():
+    sentence = gsub('[[:punct:]]', '', sentence)
+    sentence = gsub('[[:cntrl:]]', '', sentence)
+    sentence = gsub('\\d+', '', sentence)
+    # and convert to lower case:
+    sentence = tolower(sentence)
+    
+    # split into words. str_split is in the stringr package
+    word.list = str_split(sentence, '\\s+')
+    # sometimes a list() is one level of hierarchy too much
+    words = unlist(word.list)
+    
+    # compare our words to the dictionaries of positive & negative terms
+    pos.matches = match(words, pos.words)
+    neg.matches = match(words, neg.words)
+    
+    # match() returns the position of the matched term or NA
+    # we just want a TRUE/FALSE:
+    pos.matches = !is.na(pos.matches)
+    neg.matches = !is.na(neg.matches)
+    
+    # and conveniently enough, TRUE/FALSE will be treated as 1/0 by sum():
+    score = sum(pos.matches) - sum(neg.matches)
+    
+    return(score)
+  }, pos.words, neg.words, .progress=.progress )
+  
+  scores.df = data.frame(score=scores, text=sentences)
+  return(scores.df)
+}
+
+#create or download  a repository of positive and negative words
+
+hu.liu.pos = scan('D:/r/positive-words.txt', what='character', comment.char = ';')
+hu.liu.neg = scan('D:/r/negative-words.txt', what = 'character', comment.char = ';')
+
+pos.words <- c(hu.liu.pos, 'happy', 'well-off', 'good', 'happiness', 'awesome', 'nice')
+neg.words <- c(hu.liu.neg, 'sad', 'bad', 'miserable', 'terrible', 'no good')
+
+#import dataset
+
+data_NFL <- read.csv("D:/r/tweets.csv")
+data_NFL$text <- as.factor(data_NFL$text)
+
+NFL.scores <- score.sentiment(data_aiadmk$text, pos.words, neg.words, .progress = 'none')
+
+library(ggplot2)
+
+qplot(NFL.scores$score, geom="histogram", binwidth = 0.5, main = "Histogram for AIADMK Sentiment", xlab = "Score", fill=I("blue"), col=I("red")) 
+       
+
+mean(NFL.scores$score)
+
+hist(NFL.scores$score)
